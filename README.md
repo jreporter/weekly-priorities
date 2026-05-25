@@ -1,12 +1,5 @@
 # weekly-priorities
 
-Simple app to track weekly priorities by signal level:
-- High signal
-- Medium signal
-- Low signal
+This is a weekly priority tracker repo, which contains .md files for each week's high/med/low signal priorities. This refers to high/med/low signal to noise ratio items. I aim to work on 80% high impact (High noise) items and fit in medium/low items as I complete the high signal items. 
 
-## Usage
-
-Open `/tmp/workspace/jreporter/weekly-priorities/index.html` in a browser.
-
-For each week, add priorities in the signal sections, mark items complete, review progress, and use **Carry Over Incomplete** to bring unfinished work into the next week.
+Interested in seeing your priorities become one of my high ones? Slack me. 
