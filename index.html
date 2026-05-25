@@ -1,0 +1,315 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Weekly Priorities</title>
+    <style>
+      :root {
+        font-family: Arial, sans-serif;
+        color-scheme: light;
+      }
+      body {
+        margin: 0;
+        background: #f5f7fb;
+        color: #1f2a44;
+      }
+      main {
+        max-width: 900px;
+        margin: 0 auto;
+        padding: 24px 16px 40px;
+      }
+      h1 {
+        margin: 0 0 16px;
+      }
+      .panel {
+        background: #fff;
+        border-radius: 8px;
+        border: 1px solid #d9e0ef;
+        padding: 16px;
+        margin-bottom: 16px;
+      }
+      .controls {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        align-items: center;
+      }
+      .columns {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+        gap: 12px;
+      }
+      h2 {
+        margin-top: 0;
+      }
+      form {
+        display: flex;
+        gap: 6px;
+      }
+      input[type="text"] {
+        width: 100%;
+        padding: 6px 8px;
+      }
+      button {
+        border: 1px solid #9db0de;
+        background: #eaf0ff;
+        color: #1f2a44;
+        border-radius: 6px;
+        padding: 6px 10px;
+        cursor: pointer;
+      }
+      ul {
+        padding-left: 0;
+        list-style: none;
+        margin: 10px 0 0;
+      }
+      li {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        padding: 6px 0;
+      }
+      li span.done {
+        text-decoration: line-through;
+        color: #5e6d95;
+      }
+      .muted {
+        color: #5e6d95;
+        font-size: 0.9rem;
+      }
+      #progress p {
+        margin: 6px 0;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Weekly Priorities</h1>
+
+      <section class="panel">
+        <div class="controls">
+          <label for="week">Week:</label>
+          <input id="week" type="week" />
+          <button id="newWeek" type="button">Start Next Week</button>
+          <button id="carryOver" type="button">Carry Over Incomplete</button>
+        </div>
+        <p class="muted">Track priorities by signal level and carry unfinished work to next week.</p>
+      </section>
+
+      <section class="columns">
+        <article class="panel" data-signal="high">
+          <h2>High signal</h2>
+          <form>
+            <input type="text" name="item" placeholder="Add high-signal priority" required />
+            <button type="submit">Add</button>
+          </form>
+          <ul></ul>
+        </article>
+
+        <article class="panel" data-signal="medium">
+          <h2>Medium signal</h2>
+          <form>
+            <input type="text" name="item" placeholder="Add medium-signal priority" required />
+            <button type="submit">Add</button>
+          </form>
+          <ul></ul>
+        </article>
+
+        <article class="panel" data-signal="low">
+          <h2>Low signal</h2>
+          <form>
+            <input type="text" name="item" placeholder="Add low-signal priority" required />
+            <button type="submit">Add</button>
+          </form>
+          <ul></ul>
+        </article>
+      </section>
+
+      <section class="panel" id="progress">
+        <h2>Progress</h2>
+        <p class="muted">No priorities yet.</p>
+      </section>
+    </main>
+
+    <script>
+      const SIGNALS = ["high", "medium", "low"];
+      const STORAGE_KEY = "weekly-priorities";
+
+      function getISOWeek(date = new Date()) {
+        const utcDate = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+        const dayNum = utcDate.getUTCDay() || 7;
+        utcDate.setUTCDate(utcDate.getUTCDate() + 4 - dayNum);
+        const yearStart = new Date(Date.UTC(utcDate.getUTCFullYear(), 0, 1));
+        const weekNum = Math.ceil((((utcDate - yearStart) / 86400000) + 1) / 7);
+        return `${utcDate.getUTCFullYear()}-W${String(weekNum).padStart(2, "0")}`;
+      }
+
+      function nextWeek(weekValue) {
+        const [year, week] = weekValue.split("-W").map(Number);
+        const jan4 = new Date(Date.UTC(year, 0, 4));
+        const jan4Day = jan4.getUTCDay() || 7;
+        const firstWeekMonday = new Date(jan4);
+        firstWeekMonday.setUTCDate(jan4.getUTCDate() - (jan4Day - 1));
+        const monday = new Date(firstWeekMonday);
+        monday.setUTCDate(firstWeekMonday.getUTCDate() + (week - 1) * 7 + 7);
+        return getISOWeek(monday);
+      }
+
+      function loadData() {
+        try {
+          return JSON.parse(localStorage.getItem(STORAGE_KEY)) || {};
+        } catch {
+          return {};
+        }
+      }
+
+      function saveData(data) {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+      }
+
+      function emptyWeek() {
+        return { high: [], medium: [], low: [] };
+      }
+
+      const weekInput = document.getElementById("week");
+      const progressNode = document.getElementById("progress");
+      const newWeekBtn = document.getElementById("newWeek");
+      const carryOverBtn = document.getElementById("carryOver");
+      const columns = [...document.querySelectorAll("[data-signal]")];
+
+      function ensureWeek(data, week) {
+        if (!data[week]) {
+          data[week] = emptyWeek();
+        }
+      }
+
+      function renderProgress(weekData) {
+        const lines = SIGNALS.map((signal) => {
+          const total = weekData[signal].length;
+          const done = weekData[signal].filter((item) => item.done).length;
+          return `${signal[0].toUpperCase() + signal.slice(1)} signal: ${done}/${total} complete`;
+        });
+        const allItems = SIGNALS.flatMap((signal) => weekData[signal]);
+        const totalDone = allItems.filter((item) => item.done).length;
+        const summary = `Overall: ${totalDone}/${allItems.length} complete`;
+
+        progressNode.innerHTML = "<h2>Progress</h2>";
+        if (allItems.length === 0) {
+          const p = document.createElement("p");
+          p.className = "muted";
+          p.textContent = "No priorities yet.";
+          progressNode.appendChild(p);
+          return;
+        }
+
+        [...lines, summary].forEach((line) => {
+          const p = document.createElement("p");
+          p.textContent = line;
+          progressNode.appendChild(p);
+        });
+      }
+
+      function render() {
+        const data = loadData();
+        const currentWeek = weekInput.value;
+        ensureWeek(data, currentWeek);
+        saveData(data);
+
+        const weekData = data[currentWeek];
+
+        columns.forEach((col) => {
+          const signal = col.dataset.signal;
+          const list = col.querySelector("ul");
+          list.replaceChildren();
+
+          weekData[signal].forEach((item, index) => {
+            const li = document.createElement("li");
+
+            const check = document.createElement("input");
+            check.type = "checkbox";
+            check.checked = item.done;
+            check.addEventListener("change", () => {
+              const latestData = loadData();
+              ensureWeek(latestData, currentWeek);
+              latestData[currentWeek][signal][index].done = check.checked;
+              saveData(latestData);
+              render();
+            });
+
+            const text = document.createElement("span");
+            text.textContent = item.text;
+            if (item.done) {
+              text.className = "done";
+            }
+
+            const remove = document.createElement("button");
+            remove.type = "button";
+            remove.textContent = "Remove";
+            remove.addEventListener("click", () => {
+              const latestData = loadData();
+              ensureWeek(latestData, currentWeek);
+              latestData[currentWeek][signal].splice(index, 1);
+              saveData(latestData);
+              render();
+            });
+
+            li.append(check, text, remove);
+            list.appendChild(li);
+          });
+        });
+
+        renderProgress(weekData);
+      }
+
+      columns.forEach((col) => {
+        const signal = col.dataset.signal;
+        const form = col.querySelector("form");
+        const input = form.querySelector("input[name='item']");
+        form.addEventListener("submit", (event) => {
+          event.preventDefault();
+          const text = input.value.trim();
+          if (!text) {
+            return;
+          }
+          const data = loadData();
+          const currentWeek = weekInput.value;
+          ensureWeek(data, currentWeek);
+          data[currentWeek][signal].push({ text, done: false });
+          saveData(data);
+          input.value = "";
+          render();
+        });
+      });
+
+      weekInput.value = getISOWeek();
+      weekInput.addEventListener("change", render);
+
+      newWeekBtn.addEventListener("click", () => {
+        weekInput.value = nextWeek(weekInput.value);
+        render();
+      });
+
+      carryOverBtn.addEventListener("click", () => {
+        const data = loadData();
+        const currentWeek = weekInput.value;
+        const next = nextWeek(currentWeek);
+        ensureWeek(data, currentWeek);
+        ensureWeek(data, next);
+
+        SIGNALS.forEach((signal) => {
+          const carry = data[currentWeek][signal].filter((item) => !item.done).map((item) => ({ ...item, done: false }));
+          if (carry.length) {
+            data[next][signal].push(...carry);
+          }
+        });
+
+        saveData(data);
+        weekInput.value = next;
+        render();
+      });
+
+      render();
+    </script>
+  </body>
+</html>
